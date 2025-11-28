@@ -798,7 +798,24 @@ configure_ufw() {
     # Configure logging
     ufw logging on
     ufw logging medium
-    
+
+    # Configure UFW log rotation (Fix for Issue #2)
+    cat > /etc/logrotate.d/ufw << 'EOF'
+/var/log/ufw.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root adm
+    sharedscripts
+    postrotate
+        systemctl reload rsyslog > /dev/null 2>&1 || true
+    endscript
+}
+EOF
+
     # Basic rules with rate limiting
     ufw limit 22/tcp comment 'SSH rate limit'
     
