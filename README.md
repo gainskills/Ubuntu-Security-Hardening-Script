@@ -18,12 +18,23 @@ Production-grade security hardening scripts for Ubuntu systems that implement co
 
 ## 🆕 What's New
 
-### Recent Updates (Latest Release)
-- ✅ **Fixed all critical issues** from GitHub Issues #4-#8
+### Recent Updates (November 2025)
+
+**All GitHub Issues Resolved:**
+| Issue | Description | Fix |
+|-------|-------------|-----|
+| [#8](https://github.com/gensecaihq/Ubuntu-Security-Hardening-Script/issues/8) | APT syntax error | Fixed DPkg::Post-Invoke configuration |
+| [#7](https://github.com/gensecaihq/Ubuntu-Security-Hardening-Script/issues/7) | UFW called before install | Added installation verification |
+| [#6](https://github.com/gensecaihq/Ubuntu-Security-Hardening-Script/issues/6) | Unbound variable | Added default case to switch statements |
+| [#5](https://github.com/gensecaihq/Ubuntu-Security-Hardening-Script/issues/5) | Log directory error | Moved setup_directories before logging |
+| [#4](https://github.com/gensecaihq/Ubuntu-Security-Hardening-Script/issues/4) | UFW/iptables conflict | Removed iptables-persistent package |
+| [#2](https://github.com/gensecaihq/Ubuntu-Security-Hardening-Script/issues/2) | UFW log rotation | Added logrotate configuration |
+
+**Other Improvements:**
 - ✅ **New Ubuntu 25.x script** with cutting-edge security features
-- ✅ **UFW log rotation** configured on all scripts
+- ✅ **All fixes applied to all 3 scripts** (original, 24.04, 25.x)
 - ✅ **Enhanced error handling** across all versions
-- ✅ **Production-tested** and syntax-validated
+- ✅ **Production-tested** and syntax-validated with `bash -n`
 
 ### Ubuntu 25.x Features (New!)
 - 🔐 **Chrony with Network Time Security (NTS)** - Enhanced time synchronization security
@@ -688,6 +699,54 @@ If you discover a security vulnerability, please:
 2. Email security details privately
 3. Allow reasonable time for fixes before disclosure
 
+## 🙏 Thanks to Our Contributors
+
+We're grateful to everyone who has contributed to making this project better! This includes opening issues, submitting pull requests, writing code, and participating in discussions.
+
+<!-- ALL-CONTRIBUTORS-START -->
+<!-- This section is automatically updated by GitHub Actions -->
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/alokemajumder">
+        <img src="https://avatars.githubusercontent.com/u/26596583?v=4" width="80px;" alt="alokemajumder"/><br />
+        <sub><b>alokemajumder</b></sub>
+      </a><br />
+      <sub>💻 🐛 📖 🚧</sub>
+    </td>
+    <td align="center">
+      <a href="https://github.com/Kingcitaldo125">
+        <img src="https://avatars.githubusercontent.com/u/25781344?v=4" width="80px;" alt="Kingcitaldo125"/><br />
+        <sub><b>Kingcitaldo125</b></sub>
+      </a><br />
+      <sub>🐛</sub>
+    </td>
+    <td align="center">
+      <a href="https://github.com/MoezLog">
+        <img src="https://avatars.githubusercontent.com/u/179240440?v=4" width="80px;" alt="MoezLog"/><br />
+        <sub><b>MoezLog</b></sub>
+      </a><br />
+      <sub>🐛</sub>
+    </td>
+    <td align="center">
+      <a href="https://github.com/Shekhar0050M">
+        <img src="https://avatars.githubusercontent.com/u/62455266?v=4" width="80px;" alt="Shekhar0050M"/><br />
+        <sub><b>Shekhar0050M</b></sub>
+      </a><br />
+      <sub>🐛</sub>
+    </td>
+  </tr>
+</table>
+
+**Legend:** 💻 Code | 🐛 Bug Reports | 📖 Documentation | 🚧 Maintenance | 💬 Discussions | 👀 Reviews
+
+<!-- ALL-CONTRIBUTORS-END -->
+
+> **Note:** This section is automatically updated when new contributors join the project.
+
+Want to see your name here? Check out the [Contributing](#-contributing) section to get started!
+
 ## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -702,14 +761,23 @@ These scripts are provided "AS IS" without warranty of any kind, express or impl
 - Review the code before execution
 - Have a recovery plan ready
 
-## 🙏 Acknowledgments
+## 🏆 Acknowledgments
 
-- Ubuntu Security Team for security guidelines
-- CIS for benchmark documentation
-- NIST for cybersecurity framework
-- Open source security tool maintainers
-- Community contributors and testers
-- Canonical for Ubuntu 25.x security enhancements
+**Organizations & Projects:**
+- [Ubuntu Security Team](https://ubuntu.com/security) - Security guidelines and best practices
+- [Center for Internet Security (CIS)](https://www.cisecurity.org/) - Benchmark documentation
+- [NIST](https://www.nist.gov/) - Cybersecurity framework
+- [Canonical](https://canonical.com/) - Ubuntu 25.x security enhancements
+
+**Open Source Tools:**
+- [OpenSCAP](https://www.open-scap.org/) - Security compliance scanning
+- [ClamAV](https://www.clamav.net/) - Antivirus protection
+- [Fail2ban](https://www.fail2ban.org/) - Intrusion prevention
+- [AIDE](https://aide.github.io/) - File integrity monitoring
+- [Lynis](https://cisofy.com/lynis/) - Security auditing
+- [Chrony](https://chrony.tuxfamily.org/) - Network Time Security
+
+See our [Contributors](#-thanks-to-our-contributors) section for the amazing people who help improve this project!
 
 ## 📞 Support
 
@@ -741,8 +809,10 @@ These scripts are provided "AS IS" without warranty of any kind, express or impl
 
 ---
 
-**Version**: 4.0 | **Last Updated**: November 2025 | **Maintained**: Yes ✅
+**Version**: 4.0 | **Last Updated**: November 28, 2025 | **Maintained**: Yes ✅
 
 **Tested On**: Ubuntu 18.04, 20.04, 22.04, 24.04, 25.04, 25.10
 
-**All Scripts**: Production-Ready | Syntax-Validated | Issue-Free
+**All Scripts**: Production-Ready | Syntax-Validated | All Issues Fixed ✅
+
+**Contributors**: Auto-updated weekly via GitHub Actions
