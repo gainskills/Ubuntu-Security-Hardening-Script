@@ -825,7 +825,8 @@ EOF
     # Enable firewall
     echo "y" | ufw enable
     
-    # Configure iptables-persistent
+    # Save firewall rules with netfilter-persistent (if available)
+    # Note: iptables-persistent removed to avoid conflicts with UFW (Fix for Issue #4)
     if command -v netfilter-persistent &> /dev/null; then
         netfilter-persistent save
         systemctl enable netfilter-persistent
