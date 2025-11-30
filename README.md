@@ -702,39 +702,47 @@ If you discover a security vulnerability, please:
 ## 🙏 Thanks to Our Contributors
 
 We're grateful to everyone who has contributed to making this project better! This includes opening issues, submitting pull requests, writing code, and participating in discussions.
-
 <!-- ALL-CONTRIBUTORS-START -->
 <!-- This section is automatically updated by GitHub Actions -->
 
 <table>
   <tr>
     <td align="center">
-      <a href="https://github.com/alokemajumder">
-        <img src="https://avatars.githubusercontent.com/u/26596583?v=4" width="80px;" alt="alokemajumder"/><br />
-        <sub><b>alokemajumder</b></sub>
-      </a><br />
-      <sub>💻 🐛 📖 🚧</sub>
-    </td>
-    <td align="center">
       <a href="https://github.com/Kingcitaldo125">
         <img src="https://avatars.githubusercontent.com/u/25781344?v=4" width="80px;" alt="Kingcitaldo125"/><br />
         <sub><b>Kingcitaldo125</b></sub>
       </a><br />
-      <sub>🐛</sub>
+      <sub>🐛 </sub>
     </td>
     <td align="center">
       <a href="https://github.com/MoezLog">
         <img src="https://avatars.githubusercontent.com/u/179240440?v=4" width="80px;" alt="MoezLog"/><br />
         <sub><b>MoezLog</b></sub>
       </a><br />
-      <sub>🐛</sub>
+      <sub>🐛 </sub>
     </td>
     <td align="center">
       <a href="https://github.com/Shekhar0050M">
         <img src="https://avatars.githubusercontent.com/u/62455266?v=4" width="80px;" alt="Shekhar0050M"/><br />
         <sub><b>Shekhar0050M</b></sub>
       </a><br />
-      <sub>🐛</sub>
+      <sub>🐛 </sub>
+    </td>
+    <td align="center">
+      <a href="https://github.com/alokemajumder">
+        <img src="https://avatars.githubusercontent.com/u/26596583?v=4" width="80px;" alt="alokemajumder"/><br />
+        <sub><b>alokemajumder</b></sub>
+      </a><br />
+      <sub>💻 🐛 📖 </sub>
+    </td>
+    </tr>
+    <tr>
+    <td align="center">
+      <a href="https://github.com/gensecai-dev">
+        <img src="https://avatars.githubusercontent.com/u/216218359?v=4" width="80px;" alt="gensecai-dev"/><br />
+        <sub><b>gensecai-dev</b></sub>
+      </a><br />
+      <sub>💬</sub>
     </td>
   </tr>
 </table>
