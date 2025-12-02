@@ -247,6 +247,28 @@ EOF
 # Monitor system calls
 -a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change
 -a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change
+
+# LOTL (Living Off The Land) Detection Rules
+# Monitor commonly abused binaries
+-w /usr/bin/wget -p x -k lotl_download
+-w /usr/bin/curl -p x -k lotl_download
+-w /usr/bin/base64 -p x -k lotl_encoding
+-w /usr/bin/nc -p x -k lotl_netcat
+-w /usr/bin/python -p x -k lotl_scripting
+-w /usr/bin/python3 -p x -k lotl_scripting
+-w /usr/bin/perl -p x -k lotl_scripting
+
+# Monitor archive and transfer tools
+-w /usr/bin/tar -p x -k lotl_archive
+-w /usr/bin/scp -p x -k lotl_transfer
+-w /usr/bin/ssh -p x -k lotl_ssh
+
+# Privilege escalation detection
+-a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=4294967295 -k priv_escalation
+
+# Staging directory monitoring
+-w /tmp -p x -k tmp_exec
+-w /dev/shm -p x -k shm_exec
 EOF
 
     # Restart auditd
@@ -646,8 +668,68 @@ oscap xccdf eval \\
     "$ssg_file"
 EOF
     chmod 755 "/etc/cron.$oscap_frequency/oscap_scan"
-    
+
     print_message "$GREEN" "OpenSCAP configured with $oscap_frequency scans"
+}
+
+# Function to configure cloud instance security (AWS/Azure/GCP)
+configure_cloud_security() {
+    print_message "$GREEN" "Configuring cloud instance security..."
+
+    local is_cloud=false
+    local cloud_provider=""
+
+    # Detect cloud environment
+    if [[ -f /sys/class/dmi/id/product_name ]]; then
+        local product_name
+        product_name=$(cat /sys/class/dmi/id/product_name 2>/dev/null || echo "")
+
+        if [[ "$product_name" == *"Amazon"* ]]; then
+            is_cloud=true
+            cloud_provider="AWS"
+        elif [[ "$product_name" == *"Google"* ]]; then
+            is_cloud=true
+            cloud_provider="GCP"
+        elif [[ "$product_name" == *"Microsoft"* ]]; then
+            is_cloud=true
+            cloud_provider="Azure"
+        fi
+    fi
+
+    # Check for cloud-init
+    if [[ -d /var/lib/cloud ]] && ! $is_cloud; then
+        is_cloud=true
+        cloud_provider="Unknown Cloud"
+    fi
+
+    if ! $is_cloud; then
+        print_message "$YELLOW" "Not a cloud instance - skipping cloud-specific hardening"
+        return 0
+    fi
+
+    print_message "$BLUE" "Detected cloud provider: $cloud_provider"
+
+    # Metadata protection (works on all major clouds)
+    if command -v iptables &> /dev/null; then
+        # Block non-root access to metadata service
+        iptables -C OUTPUT -d 169.254.169.254 -m owner ! --uid-owner 0 -j DROP 2>/dev/null || \
+            iptables -A OUTPUT -d 169.254.169.254 -m owner ! --uid-owner 0 -j DROP
+        print_message "$GREEN" "Cloud metadata protection configured"
+    fi
+
+    # Secure cloud-init
+    if [[ -f /etc/cloud/cloud.cfg ]]; then
+        if ! grep -q "network: {config: disabled}" /etc/cloud/cloud.cfg; then
+            echo "network: {config: disabled}" >> /etc/cloud/cloud.cfg
+        fi
+    fi
+
+    if [[ -d /var/log/cloud-init ]]; then
+        chmod 600 /var/log/cloud-init/*.log 2>/dev/null || true
+        chmod 700 /var/log/cloud-init
+    fi
+
+    print_message "$GREEN" "Cloud security hardening completed"
 }
 
 # Function to generate final report
@@ -817,7 +899,10 @@ main() {
     configure_limits
     configure_sysctl
     configure_openscap
-    
+
+    # Cloud instance security (AWS/Azure/GCP)
+    configure_cloud_security
+
     # Final steps
     generate_report
     post_hardening_checks
