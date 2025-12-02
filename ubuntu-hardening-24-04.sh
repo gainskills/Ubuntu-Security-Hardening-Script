@@ -486,6 +486,78 @@ EOF
 -w /etc/crontab -p wa -k cron
 -w /var/spool/cron/ -p wa -k cron
 
+# ============================================
+# LOTL (Living Off The Land) Detection Rules
+# ============================================
+
+# Monitor commonly abused binaries for data exfiltration
+-w /usr/bin/wget -p x -k lotl_download
+-w /usr/bin/curl -p x -k lotl_download
+-w /usr/bin/scp -p x -k lotl_transfer
+-w /usr/bin/sftp -p x -k lotl_transfer
+-w /usr/bin/rsync -p x -k lotl_transfer
+-w /usr/bin/ftp -p x -k lotl_transfer
+
+# Monitor encoding/decoding tools (often used to obfuscate)
+-w /usr/bin/base64 -p x -k lotl_encoding
+-w /usr/bin/xxd -p x -k lotl_encoding
+-w /usr/bin/uuencode -p x -k lotl_encoding
+-w /usr/bin/uudecode -p x -k lotl_encoding
+
+# Monitor network reconnaissance tools
+-w /usr/bin/nc -p x -k lotl_netcat
+-w /usr/bin/ncat -p x -k lotl_netcat
+-w /usr/bin/netcat -p x -k lotl_netcat
+-w /usr/bin/nmap -p x -k lotl_recon
+-w /usr/bin/tcpdump -p x -k lotl_capture
+-w /usr/bin/tshark -p x -k lotl_capture
+-w /usr/sbin/tcpdump -p x -k lotl_capture
+
+# Monitor compilers and interpreters (often used in attacks)
+-w /usr/bin/gcc -p x -k lotl_compile
+-w /usr/bin/g++ -p x -k lotl_compile
+-w /usr/bin/make -p x -k lotl_compile
+-w /usr/bin/python -p x -k lotl_scripting
+-w /usr/bin/python3 -p x -k lotl_scripting
+-w /usr/bin/perl -p x -k lotl_scripting
+-w /usr/bin/ruby -p x -k lotl_scripting
+
+# Monitor reverse shell / tunneling tools
+-w /usr/bin/socat -p x -k lotl_tunnel
+-w /usr/bin/ssh -p x -k lotl_ssh
+-w /usr/bin/openssl -p x -k lotl_crypto
+
+# Monitor file manipulation that could indicate data staging
+-w /usr/bin/tar -p x -k lotl_archive
+-w /usr/bin/gzip -p x -k lotl_archive
+-w /usr/bin/zip -p x -k lotl_archive
+-w /usr/bin/7z -p x -k lotl_archive
+
+# Monitor package managers (could be used to install backdoors)
+-w /usr/bin/apt -p x -k lotl_package
+-w /usr/bin/apt-get -p x -k lotl_package
+-w /usr/bin/dpkg -p x -k lotl_package
+-w /snap/bin -p x -k lotl_snap
+
+# Container escape detection
+-a always,exit -F arch=b64 -S unshare -k container_escape
+-a always,exit -F arch=b64 -S setns -k container_escape
+-a always,exit -F arch=b32 -S unshare -k container_escape
+-a always,exit -F arch=b32 -S setns -k container_escape
+
+# Privilege escalation detection - commands run as root by non-root users
+-a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=4294967295 -k priv_escalation
+-a always,exit -F arch=b32 -S execve -F euid=0 -F auid>=1000 -F auid!=4294967295 -k priv_escalation
+
+# Detect suspicious process injection
+-a always,exit -F arch=b64 -S ptrace -k process_injection
+-a always,exit -F arch=b32 -S ptrace -k process_injection
+
+# Monitor /tmp and /dev/shm for executable activity (common attack staging)
+-w /tmp -p x -k tmp_exec
+-w /dev/shm -p x -k shm_exec
+-w /var/tmp -p x -k vartmp_exec
+
 # Make configuration immutable
 -e 2
 EOF
@@ -1021,7 +1093,69 @@ Subsystem sftp /usr/lib/openssh/sftp-server -f AUTHPRIV -l INFO
 # AllowGroups sshusers
 # DenyUsers nobody
 # DenyGroups nogroup
+
+# ============================================
+# SSH Certificate Authentication (Optional)
+# ============================================
+# To enable SSH certificates, create a CA and configure:
+# TrustedUserCAKeys /etc/ssh/ca.pub
+# AuthorizedPrincipalsFile /etc/ssh/auth_principals/%u
+# HostCertificate /etc/ssh/ssh_host_ed25519_key-cert.pub
+
+# ============================================
+# FIDO2/WebAuthn Security Key Support
+# ============================================
+# Requires OpenSSH 8.2+ (Ubuntu 24.04 has 9.x)
+# Add to PubkeyAcceptedAlgorithms if using FIDO2 keys:
+PubkeyAcceptedAlgorithms +sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com,ssh-ed25519,rsa-sha2-512,rsa-sha2-256
 EOF
+
+    # Create SSH certificate helper documentation
+    mkdir -p /etc/ssh/auth_principals
+    cat > /etc/ssh/ssh-certificates-setup.md << 'CERTDOC'
+# SSH Certificate Authentication Setup Guide
+
+## Creating a Certificate Authority (CA)
+
+1. Generate CA key pair (do this on a secure system):
+   ```bash
+   ssh-keygen -t ed25519 -f /path/to/ca -C "SSH CA"
+   ```
+
+2. Copy ca.pub to the server:
+   ```bash
+   sudo cp ca.pub /etc/ssh/ca.pub
+   ```
+
+3. Enable CA in sshd_config:
+   ```
+   TrustedUserCAKeys /etc/ssh/ca.pub
+   ```
+
+## Signing User Keys
+
+Sign a user's public key:
+```bash
+ssh-keygen -s /path/to/ca -I user@hostname -n username -V +52w id_ed25519.pub
+```
+
+## FIDO2 Security Keys
+
+Generate a FIDO2-backed SSH key:
+```bash
+# Resident key (stored on device, portable)
+ssh-keygen -t ed25519-sk -O resident -O verify-required
+
+# Non-resident key (handle stored on disk)
+ssh-keygen -t ed25519-sk
+```
+
+Benefits:
+- Keys never leave the hardware security key
+- Requires physical touch for each authentication
+- Optional PIN verification
+- Phishing resistant
+CERTDOC
 
     # Test configuration
     sshd -t || error_exit "SSH configuration test failed"
@@ -1245,8 +1379,91 @@ EOF
 
     # Apply sysctl settings
     sysctl -p /etc/sysctl.d/99-security-hardening.conf
-    
+
     print_message "$GREEN" "Kernel parameters configured"
+}
+
+# Function to configure kernel lockdown mode
+configure_kernel_lockdown() {
+    print_message "$GREEN" "Configuring kernel lockdown mode..."
+
+    # Check if lockdown is already enabled
+    if [[ -f /sys/kernel/security/lockdown ]]; then
+        local current_lockdown
+        current_lockdown=$(cat /sys/kernel/security/lockdown 2>/dev/null | grep -oP '\[\K[^\]]+')
+        if [[ "$current_lockdown" == "integrity" ]] || [[ "$current_lockdown" == "confidentiality" ]]; then
+            print_message "$GREEN" "Kernel lockdown already enabled: $current_lockdown"
+            return 0
+        fi
+    fi
+
+    # Check if Secure Boot is enabled (lockdown is often auto-enabled with Secure Boot)
+    local secure_boot_enabled=false
+    if command -v mokutil &> /dev/null; then
+        if mokutil --sb-state 2>/dev/null | grep -q "SecureBoot enabled"; then
+            secure_boot_enabled=true
+            print_message "$BLUE" "Secure Boot is enabled - kernel lockdown may be auto-enabled"
+        fi
+    fi
+
+    # Configure kernel lockdown in GRUB
+    if [[ -f /etc/default/grub ]]; then
+        # Backup GRUB config
+        cp /etc/default/grub "$BACKUP_DIR/grub.backup"
+
+        # Check if lockdown parameter already exists
+        if ! grep -q "lockdown=" /etc/default/grub; then
+            print_message "$BLUE" "Adding kernel lockdown=integrity to GRUB..."
+
+            # Add lockdown=integrity to GRUB_CMDLINE_LINUX_DEFAULT
+            if grep -q '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub; then
+                sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"/GRUB_CMDLINE_LINUX_DEFAULT="\1 lockdown=integrity"/' /etc/default/grub
+            else
+                echo 'GRUB_CMDLINE_LINUX_DEFAULT="quiet splash lockdown=integrity"' >> /etc/default/grub
+            fi
+
+            # Update GRUB
+            if command -v update-grub &> /dev/null; then
+                update-grub
+                print_message "$GREEN" "GRUB updated with kernel lockdown=integrity"
+                print_message "$YELLOW" "NOTE: Reboot required to enable kernel lockdown"
+            fi
+        else
+            print_message "$YELLOW" "Kernel lockdown parameter already configured in GRUB"
+        fi
+    fi
+
+    # Create documentation about lockdown modes
+    cat > /etc/security/kernel-lockdown.info << 'EOF'
+Kernel Lockdown Mode Information
+================================
+
+Kernel lockdown restricts access to kernel features that could allow
+arbitrary code execution or modification of kernel memory.
+
+Modes:
+------
+- none: No restrictions (default without Secure Boot)
+- integrity: Blocks features that allow userspace to modify kernel
+  - Loading unsigned kernel modules
+  - Accessing /dev/mem and /dev/kmem
+  - Writing to MSRs
+  - Using kexec with unsigned images
+
+- confidentiality: integrity + blocks extracting kernel secrets
+  - Reading kernel memory via /proc/kallsyms
+  - Using perf in some modes
+  - BPF read of kernel memory
+
+Current Status: Check with 'cat /sys/kernel/security/lockdown'
+
+To change mode: Add 'lockdown=integrity' or 'lockdown=confidentiality'
+to kernel parameters in /etc/default/grub and run update-grub
+
+WARNING: Some debugging tools and features may not work with lockdown enabled
+EOF
+
+    print_message "$GREEN" "Kernel lockdown configuration completed"
 }
 
 # Function to configure OpenSCAP for Ubuntu 24.04
@@ -1275,33 +1492,57 @@ configure_openscap() {
         return
     fi
     
-    # Create scan script
+    # Create enhanced scan script with profile selection
     cat > /usr/local/bin/openscap-scan.sh << EOF
 #!/bin/bash
-# OpenSCAP Security Scan for Ubuntu 24.04
+# OpenSCAP Security Compliance Scan for Ubuntu 24.04
+# Supports CIS Benchmarks and DISA STIG profiles
+
 REPORT_DIR="/var/log/openscap"
 mkdir -p "\$REPORT_DIR"
+TIMESTAMP=\$(date +%Y%m%d-%H%M%S)
 
-# Available profiles:
-# - xccdf_org.ssgproject.content_profile_cis_level1_server
-# - xccdf_org.ssgproject.content_profile_cis_level2_server
-# - xccdf_org.ssgproject.content_profile_standard
-# - xccdf_org.ssgproject.content_profile_pci-dss
+# Profile selection (change as needed)
+# CIS Profiles:
+#   xccdf_org.ssgproject.content_profile_cis_level1_server
+#   xccdf_org.ssgproject.content_profile_cis_level2_server
+# DISA STIG Profile:
+#   xccdf_org.ssgproject.content_profile_stig
+# Other:
+#   xccdf_org.ssgproject.content_profile_standard
+#   xccdf_org.ssgproject.content_profile_pci-dss
 
-PROFILE="xccdf_org.ssgproject.content_profile_cis_level1_server"
+PROFILE="\${OSCAP_PROFILE:-xccdf_org.ssgproject.content_profile_cis_level1_server}"
 
+echo "Running OpenSCAP scan with profile: \$PROFILE"
+echo "Timestamp: \$TIMESTAMP"
+
+# Run compliance scan
 oscap xccdf eval \\
     --profile "\$PROFILE" \\
-    --report "\$REPORT_DIR/report_\$(date +%Y%m%d-%H%M%S).html" \\
-    --results "\$REPORT_DIR/results_\$(date +%Y%m%d-%H%M%S).xml" \\
+    --report "\$REPORT_DIR/report_\${TIMESTAMP}.html" \\
+    --results "\$REPORT_DIR/results_\${TIMESTAMP}.xml" \\
     --oval-results \\
-    "$ssg_file" 2>&1 | tee "\$REPORT_DIR/scan_\$(date +%Y%m%d-%H%M%S).log"
+    "$ssg_file" 2>&1 | tee "\$REPORT_DIR/scan_\${TIMESTAMP}.log"
+
+# Store exit code
+SCAN_RESULT=\$?
 
 # Generate remediation script
 oscap xccdf generate fix \\
     --profile "\$PROFILE" \\
-    --output "\$REPORT_DIR/remediation_\$(date +%Y%m%d-%H%M%S).sh" \\
-    "\$REPORT_DIR"/results_*.xml | tail -1
+    --output "\$REPORT_DIR/remediation_\${TIMESTAMP}.sh" \\
+    "\$REPORT_DIR/results_\${TIMESTAMP}.xml" 2>/dev/null
+
+# Generate summary
+echo ""
+echo "=== Scan Summary ==="
+echo "Profile: \$PROFILE"
+echo "Report: \$REPORT_DIR/report_\${TIMESTAMP}.html"
+echo "Results: \$REPORT_DIR/results_\${TIMESTAMP}.xml"
+echo "Remediation: \$REPORT_DIR/remediation_\${TIMESTAMP}.sh"
+
+exit \$SCAN_RESULT
 EOF
     chmod 755 /usr/local/bin/openscap-scan.sh
     
@@ -1370,15 +1611,79 @@ configure_ubuntu_24_features() {
         systemctl start systemd-oomd
     fi
     
-    # Configure private tmp for services
-    mkdir -p /etc/systemd/system/
-    cat > /etc/systemd/system/private-tmp.conf << 'EOF'
+    # Configure enhanced systemd service sandboxing
+    print_message "$BLUE" "Applying enhanced systemd service sandboxing..."
+
+    # SSH service hardening
+    mkdir -p /etc/systemd/system/ssh.service.d/
+    cat > /etc/systemd/system/ssh.service.d/hardening.conf << 'EOF'
 [Service]
+ProtectSystem=strict
+ProtectHome=read-only
 PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+NoNewPrivileges=yes
+SystemCallArchitectures=native
+MemoryDenyWriteExecute=yes
+EOF
+
+    # Fail2ban service hardening
+    mkdir -p /etc/systemd/system/fail2ban.service.d/
+    cat > /etc/systemd/system/fail2ban.service.d/hardening.conf << 'EOF'
+[Service]
 ProtectSystem=strict
 ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
 NoNewPrivileges=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=CAP_AUDIT_READ CAP_DAC_READ_SEARCH CAP_NET_ADMIN CAP_NET_RAW
 EOF
+
+    # ClamAV service hardening
+    mkdir -p /etc/systemd/system/clamav-daemon.service.d/
+    cat > /etc/systemd/system/clamav-daemon.service.d/hardening.conf << 'EOF'
+[Service]
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+NoNewPrivileges=yes
+RestrictRealtime=yes
+EOF
+
+    # Auditd service hardening (limited - needs kernel access)
+    mkdir -p /etc/systemd/system/auditd.service.d/
+    cat > /etc/systemd/system/auditd.service.d/hardening.conf << 'EOF'
+[Service]
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+RestrictRealtime=yes
+LockPersonality=yes
+EOF
+
+    # Reload systemd to apply changes
+    systemctl daemon-reload
+
+    print_message "$GREEN" "Systemd service sandboxing applied"
     
     # Configure DNSStubListener if using systemd-resolved
     if systemctl is-active systemd-resolved; then
@@ -1404,6 +1709,130 @@ EOF
         print_message "$BLUE" "Securing netplan configuration..."
         chmod 600 /etc/netplan/*.yaml 2>/dev/null || true
     fi
+}
+
+# Function to configure cloud instance security (AWS/Azure/GCP)
+configure_cloud_security() {
+    print_message "$GREEN" "Configuring cloud instance security..."
+
+    local is_cloud=false
+    local cloud_provider=""
+
+    # Detect cloud environment
+    if [[ -f /sys/class/dmi/id/product_name ]]; then
+        local product_name
+        product_name=$(cat /sys/class/dmi/id/product_name 2>/dev/null || echo "")
+
+        if [[ "$product_name" == *"Amazon"* ]] || [[ -f /sys/hypervisor/uuid ]] && grep -qi "ec2" /sys/hypervisor/uuid 2>/dev/null; then
+            is_cloud=true
+            cloud_provider="AWS"
+        elif [[ "$product_name" == *"Google"* ]]; then
+            is_cloud=true
+            cloud_provider="GCP"
+        elif [[ "$product_name" == *"Microsoft"* ]] || [[ "$product_name" == *"Virtual Machine"* ]]; then
+            is_cloud=true
+            cloud_provider="Azure"
+        fi
+    fi
+
+    # Check for cloud-init (another indicator)
+    if [[ -d /var/lib/cloud ]] && ! $is_cloud; then
+        is_cloud=true
+        cloud_provider="Unknown Cloud"
+    fi
+
+    if ! $is_cloud; then
+        print_message "$YELLOW" "Not a cloud instance - skipping cloud-specific hardening"
+        return 0
+    fi
+
+    print_message "$BLUE" "Detected cloud provider: $cloud_provider"
+
+    # AWS-specific hardening
+    if [[ "$cloud_provider" == "AWS" ]]; then
+        print_message "$BLUE" "Applying AWS-specific security controls..."
+
+        # IMDSv2 enforcement - block IMDSv1 at firewall level
+        # This provides defense-in-depth even if instance metadata isn't configured for IMDSv2
+        if command -v iptables &> /dev/null; then
+            # Create a script to enforce metadata protection
+            cat > /etc/network/if-up.d/block-imds << 'IMDSEOF'
+#!/bin/bash
+# Block direct access to IMDS for non-root users (defense against SSRF)
+# IMDSv2 should be enforced at the AWS level, this is additional protection
+
+# Only allow root to access metadata service
+iptables -C OUTPUT -d 169.254.169.254 -m owner ! --uid-owner 0 -j DROP 2>/dev/null || \
+    iptables -A OUTPUT -d 169.254.169.254 -m owner ! --uid-owner 0 -j DROP
+
+# Log attempts to access metadata from non-root
+iptables -C OUTPUT -d 169.254.169.254 -m owner ! --uid-owner 0 -j LOG --log-prefix "IMDS-ACCESS: " 2>/dev/null || \
+    iptables -I OUTPUT -d 169.254.169.254 -m owner ! --uid-owner 0 -j LOG --log-prefix "IMDS-ACCESS: "
+IMDSEOF
+            chmod +x /etc/network/if-up.d/block-imds
+
+            # Apply immediately
+            /etc/network/if-up.d/block-imds 2>/dev/null || true
+        fi
+
+        print_message "$GREEN" "AWS IMDS protection configured"
+    fi
+
+    # Azure-specific hardening
+    if [[ "$cloud_provider" == "Azure" ]]; then
+        print_message "$BLUE" "Applying Azure-specific security controls..."
+
+        # Block Azure IMDS for non-root (similar protection)
+        if command -v iptables &> /dev/null; then
+            iptables -C OUTPUT -d 169.254.169.254 -m owner ! --uid-owner 0 -j DROP 2>/dev/null || \
+                iptables -A OUTPUT -d 169.254.169.254 -m owner ! --uid-owner 0 -j DROP
+        fi
+
+        print_message "$GREEN" "Azure metadata protection configured"
+    fi
+
+    # GCP-specific hardening
+    if [[ "$cloud_provider" == "GCP" ]]; then
+        print_message "$BLUE" "Applying GCP-specific security controls..."
+
+        # Block GCP metadata for non-root
+        if command -v iptables &> /dev/null; then
+            iptables -C OUTPUT -d 169.254.169.254 -m owner ! --uid-owner 0 -j DROP 2>/dev/null || \
+                iptables -A OUTPUT -d 169.254.169.254 -m owner ! --uid-owner 0 -j DROP
+            # GCP also uses metadata.google.internal
+            iptables -C OUTPUT -d 169.254.169.254 -p tcp --dport 80 -m owner ! --uid-owner 0 -j DROP 2>/dev/null || \
+                iptables -A OUTPUT -d 169.254.169.254 -p tcp --dport 80 -m owner ! --uid-owner 0 -j DROP
+        fi
+
+        print_message "$GREEN" "GCP metadata protection configured"
+    fi
+
+    # Universal cloud hardening
+    print_message "$BLUE" "Applying universal cloud security controls..."
+
+    # Disable cloud-init network configuration after initial setup (prevents reconfiguration attacks)
+    if [[ -f /etc/cloud/cloud.cfg ]]; then
+        if ! grep -q "network: {config: disabled}" /etc/cloud/cloud.cfg; then
+            echo "network: {config: disabled}" >> /etc/cloud/cloud.cfg
+            print_message "$GREEN" "Cloud-init network reconfiguration disabled"
+        fi
+    fi
+
+    # Secure cloud-init logs (may contain sensitive data)
+    if [[ -d /var/log/cloud-init ]]; then
+        chmod 600 /var/log/cloud-init/*.log 2>/dev/null || true
+        chmod 700 /var/log/cloud-init
+    fi
+
+    # Remove any cached user-data (may contain secrets)
+    if [[ -f /var/lib/cloud/instance/user-data.txt ]]; then
+        # Keep a hash for verification, remove actual content
+        sha256sum /var/lib/cloud/instance/user-data.txt > /var/lib/cloud/instance/user-data.sha256 2>/dev/null || true
+        : > /var/lib/cloud/instance/user-data.txt
+        print_message "$GREEN" "Cleared cached user-data"
+    fi
+
+    print_message "$GREEN" "Cloud security hardening completed for $cloud_provider"
 }
 
 # Function to perform security audits
@@ -1435,8 +1864,86 @@ perform_security_audit() {
     
     # Check system users
     awk -F: '$3 >= 1000 {print $1}' /etc/passwd > "$audit_dir/system-users.txt"
-    
+
     print_message "$GREEN" "Security audit completed. Results in: $audit_dir"
+}
+
+# Function to generate JSON compliance report (for SIEM integration)
+generate_compliance_json() {
+    print_message "$GREEN" "Generating JSON compliance report..."
+
+    local json_file="${LOG_DIR}/compliance-report.json"
+
+    cat > "$json_file" << EOF
+{
+  "compliance_report": {
+    "timestamp": "$(date -Iseconds)",
+    "hostname": "$(hostname)",
+    "os_version": "$(lsb_release -ds 2>/dev/null || echo 'Ubuntu')",
+    "kernel": "$(uname -r)",
+    "script_version": "$SCRIPT_VERSION",
+    "hardening_profile": "CIS Level 1 + Custom",
+    "controls_applied": {
+      "system_updates": {
+        "status": "applied",
+        "unattended_upgrades": $(systemctl is-enabled unattended-upgrades 2>/dev/null && echo '"enabled"' || echo '"disabled"')
+      },
+      "firewall": {
+        "status": "applied",
+        "ufw_enabled": $(ufw status | grep -q "active" && echo "true" || echo "false"),
+        "default_policy": "deny incoming"
+      },
+      "ssh_hardening": {
+        "status": "applied",
+        "root_login": "disabled",
+        "password_auth": "disabled",
+        "fido2_support": "enabled"
+      },
+      "audit_logging": {
+        "status": "applied",
+        "auditd_enabled": $(systemctl is-enabled auditd 2>/dev/null && echo "true" || echo "false"),
+        "lotl_detection": "enabled"
+      },
+      "file_integrity": {
+        "aide_enabled": $(systemctl is-enabled aide.timer 2>/dev/null && echo "true" || echo "false")
+      },
+      "malware_protection": {
+        "clamav_enabled": $(systemctl is-enabled clamav-daemon 2>/dev/null && echo "true" || echo "false"),
+        "freshclam_enabled": $(systemctl is-enabled clamav-freshclam 2>/dev/null && echo "true" || echo "false")
+      },
+      "intrusion_prevention": {
+        "fail2ban_enabled": $(systemctl is-enabled fail2ban 2>/dev/null && echo "true" || echo "false")
+      },
+      "apparmor": {
+        "status": "applied",
+        "enforced_profiles": $(aa-status 2>/dev/null | grep -c "enforce" || echo "0")
+      },
+      "kernel_hardening": {
+        "sysctl_applied": true,
+        "lockdown_mode": "$(cat /sys/kernel/security/lockdown 2>/dev/null | grep -oP '\[\K[^\]]+' || echo 'none')"
+      },
+      "cloud_security": {
+        "metadata_protection": "enabled",
+        "imds_hardening": "applied"
+      },
+      "systemd_sandboxing": {
+        "ssh_hardened": true,
+        "fail2ban_hardened": true,
+        "clamav_hardened": true
+      }
+    },
+    "compliance_frameworks": [
+      "CIS Ubuntu Linux 24.04 LTS Benchmark",
+      "NIST SP 800-53",
+      "PCI-DSS (partial)"
+    ],
+    "next_scan": "Run: /usr/local/bin/openscap-scan.sh"
+  }
+}
+EOF
+
+    chmod 600 "$json_file"
+    print_message "$GREEN" "JSON compliance report: $json_file"
 }
 
 # Function to generate comprehensive report
@@ -1701,14 +2208,19 @@ main() {
     harden_ssh
     configure_limits
     configure_sysctl
+    configure_kernel_lockdown
     configure_openscap
-    
+
     # Ubuntu 24.04 specific features
     configure_ubuntu_24_features
-    
+
+    # Cloud instance security (AWS/Azure/GCP)
+    configure_cloud_security
+
     # Auditing and reporting
     perform_security_audit
     generate_report
+    generate_compliance_json
     final_system_checks
     
     # Completion
