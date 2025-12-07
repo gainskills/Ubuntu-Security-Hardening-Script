@@ -756,7 +756,7 @@ We're grateful to everyone who has contributed to making this project better! Th
         <img src="https://avatars.githubusercontent.com/u/216218359?v=4" width="80px;" alt="gensecai-dev"/><br />
         <sub><b>gensecai-dev</b></sub>
       </a><br />
-      <sub>💬</sub>
+      <sub>💻 </sub>
     </td>
   </tr>
 </table>
