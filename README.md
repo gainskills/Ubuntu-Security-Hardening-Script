@@ -752,6 +752,13 @@ We're grateful to everyone who has contributed to making this project better! Th
       <sub>💬</sub>
     </td>
     <td align="center">
+      <a href="https://github.com/cropduster32">
+        <img src="https://avatars.githubusercontent.com/u/76622404?v=4" width="80px;" alt="cropduster32"/><br />
+        <sub><b>cropduster32</b></sub>
+      </a><br />
+      <sub>🐛 </sub>
+    </td>
+    <td align="center">
       <a href="https://github.com/gensecai-dev">
         <img src="https://avatars.githubusercontent.com/u/216218359?v=4" width="80px;" alt="gensecai-dev"/><br />
         <sub><b>gensecai-dev</b></sub>
